@@ -3,35 +3,63 @@ import matplotlib.pyplot as plt
 import networkx as nx
 from scipy.sparse.csgraph import floyd_warshall
 
+PROCESSORS_IN_CLUSTER = 6
+
 def create_adjacency_matrix(num_clusters):
-    num_processors = 6 * num_clusters
+    num_processors = PROCESSORS_IN_CLUSTER * num_clusters
     adjacency_matrix = np.zeros((num_processors, num_processors), dtype=int)
 
-    # Регулярні зв’язки для центрального кластера (кластер 0)
-    base = 0
-    adjacency_matrix[base, base + 2] = 1  # 1-3
-    adjacency_matrix[base + 1, base + 2] = 1  # 2-3
-    adjacency_matrix[base + 2, base + 3] = 1  # 3-4
-    adjacency_matrix[base + 3, base + 4] = 1  # 4-5
-    adjacency_matrix[base + 3, base + 5] = 1  # 4-6
+    for cluster in range(0, num_clusters):
+        base = cluster * PROCESSORS_IN_CLUSTER
+        # Створюємо зв'язки між процесорами в межах одного кластера
+        adjacency_matrix[base, base + 2] = 1  # 1-3 чорний
+        adjacency_matrix[base + 1, base + 2] = 1  # 2-3 чорний
+        adjacency_matrix[base + 2, base + 3] = 1  # 3-4 чорний
+        adjacency_matrix[base + 3, base + 4] = 1  # 4-5 чорний
+        adjacency_matrix[base + 3, base + 5] = 1  # 4-6 чорний
 
-    # Регулярні зв’язки для дочірніх кластерів та їх підключення до центрального
-    for i in range(1, num_clusters):
-        base = i * 6
-        # Створюємо зв'язки в межах дочірнього кластера
-        adjacency_matrix[base, base + 2] = 1  # 1-3
-        adjacency_matrix[base + 1, base + 2] = 1  # 2-3
-        adjacency_matrix[base + 2, base + 3] = 1  # 3-4
-        adjacency_matrix[base + 3, base + 4] = 1  # 4-5
-        adjacency_matrix[base + 3, base + 5] = 1  # 4-6
+        if cluster >= 1:
+            # Зв'язок між центральним кластером і дочірнім кластером
+            adjacency_matrix[0, base] = 1  # Головний 1 з дочірнім 1 синій
+            adjacency_matrix[1, base + 1] = 1  # Головний 2 з дочірнім 2 світло-зелений
+            adjacency_matrix[2, base + 2] = 1  # Головний 3 з дочірнім 3 жовтий
+            adjacency_matrix[3, base + 3] = 1  # Головний 4 з дочірнім 4 бірюзовий
+            adjacency_matrix[4, base + 4] = 1  # Головний 5 з дочірнім 5 червоний
+            adjacency_matrix[5, base + 5] = 1  # Головний 6 з дочірнім 6 темно-зелений
 
-        # Зв'язок між центральним кластером і дочірнім кластером
-        adjacency_matrix[0, base] = 1  # Головний 1 з дочірнім 1
-        adjacency_matrix[1, base + 1] = 1  # Головний 2 з дочірнім 2
-        adjacency_matrix[2, base + 2] = 1  # Головний 3 з дочірнім 3
-        adjacency_matrix[3, base + 3] = 1  # Головний 4 з дочірнім 4
-        adjacency_matrix[4, base + 4] = 1  # Головний 5 з дочірнім 5
-        adjacency_matrix[5, base + 5] = 1  # Головний 6 з дочірнім 6
+            # Створюємо нерегулярний зв'язок між вторинними кластерами
+            try:
+                adjacency_matrix[base, base + PROCESSORS_IN_CLUSTER + 1] = 1  # червоний пунктир
+            except IndexError:
+                if cluster >= 2:
+                    adjacency_matrix[base, PROCESSORS_IN_CLUSTER + 1] = 1
+
+        # Створюємо нерегулярні зв'язки між вторинними кластерами
+        if cluster >= 2:
+            try:
+                adjacency_matrix[base + 4, base + PROCESSORS_IN_CLUSTER + 4] = 1  # синій пунктир
+            except IndexError:
+                adjacency_matrix[base + 4, PROCESSORS_IN_CLUSTER + 4] = 1
+
+            if cluster % 2 == 0:
+                try:
+                    adjacency_matrix[base + 2, base + 2 * PROCESSORS_IN_CLUSTER + 2] = 1  # жовтий пунктир
+                except IndexError:
+                    if cluster != 2:
+                        adjacency_matrix[base + 2, 2 * PROCESSORS_IN_CLUSTER + 2] = 1
+
+                try:
+                    adjacency_matrix[base + 3, base - PROCESSORS_IN_CLUSTER + 2] = 1
+                    adjacency_matrix[base + 3, base + PROCESSORS_IN_CLUSTER + 2] = 1 # світло-зелений пунктир
+                except IndexError:
+                    adjacency_matrix[base + 3, PROCESSORS_IN_CLUSTER + 2] = 1
+
+            if cluster % 2 == 1:
+                try:
+                    adjacency_matrix[base + 3, base + 2 * PROCESSORS_IN_CLUSTER + 3] = 1  # бірюзовий пунктир
+                except IndexError:
+                    adjacency_matrix[base + 3, PROCESSORS_IN_CLUSTER + 3] = 1
+
 
     # Робимо матрицю симетричною, оскільки зв’язки двосторонні
     adjacency_matrix = adjacency_matrix + adjacency_matrix.T
@@ -53,7 +81,32 @@ def calculate_topological_properties(adjacency_matrix):
         "Cost": cost,
         "Traffic": traffic
     }
+'''
+def calculate_topological_characteristics(adjacency_matrix):
+    degrees = np.sum(adjacency_matrix, axis=1)  # Ступінь кожної вершини
+    clustering_coefficient = np.zeros_like(degrees, dtype=float)
 
+    # Обчислення коефіцієнта кластеризації
+    for i in range(len(adjacency_matrix)):
+        neighbors = np.where(adjacency_matrix[i] == 1)[0]
+        if len(neighbors) < 2:
+            clustering_coefficient[i] = 0.0
+        else:
+            possible_links = len(neighbors) * (len(neighbors) - 1) / 2
+            actual_links = np.sum(adjacency_matrix[neighbors][:, neighbors]) / 2
+            clustering_coefficient[i] = actual_links / possible_links
+
+    # Середнє значення
+    avg_clustering_coefficient = np.mean(clustering_coefficient)
+    avg_degree = np.mean(degrees)
+
+    return {
+        "degree": degrees,
+        "avg_degree": avg_degree,
+        "clustering_coefficient": clustering_coefficient,
+        "avg_clustering_coefficient": avg_clustering_coefficient,
+    }
+'''
 def visualize_graph(adjacency_matrix, step):
     G = nx.Graph()
     num_processors = adjacency_matrix.shape[0]
@@ -95,6 +148,18 @@ def visualize_graph(adjacency_matrix, step):
 
     plt.figure(figsize=(12, 8))
 
+    cluster_labels = {}
+    cluster_positions = []
+
+    for cluster_num in range(num_processors // 6):
+        base_index = cluster_num * 6
+        cluster_center_x, cluster_center_y = pos[base_index + 1]
+        cluster_positions.append((cluster_center_x, cluster_center_y - 1.5))
+        cluster_labels[base_index + 1] = cluster_num + 1
+
+    for i, (x, y) in enumerate(cluster_positions):
+        plt.text(x, y, f"Кластер {i + 1}", fontsize=9, ha="center", color="black")
+
     for cluster_num in range(num_processors // 6):
         base_index = cluster_num * 6
         internal_edges = [
@@ -112,35 +177,109 @@ def visualize_graph(adjacency_matrix, step):
         nx.draw_networkx_edges(G, pos, edgelist=edges, edge_color=colors[i], width=2, connectionstyle="arc3,rad=0.3",
                                arrows=True)
 
-    # Нерегулярні зв'язки між вторинними кластерами (без зв’язків з центральним кластером)
-    irregular_edges = [(i * 6 + 5, (i + 1) * 6 + 5) for i in range(1, num_processors // 6 - 1)]
-    if num_processors // 6 > 2:
-        irregular_edges.append(((num_processors // 6 - 1) * 6 + 5, 11))
+    even_clusters = [cluster_num for cluster_num in range(1, num_processors // 6, 2)]
+    odd_clusters = [cluster_num for cluster_num in range(2, num_processors // 6, 2)]
 
-    nx.draw_networkx_edges(G, pos, edgelist=irregular_edges, edge_color="blue", style="dashed", width=1.5,
-                           connectionstyle="arc3,rad=0.3", arrows=True)
+    irregular_edges_blue = []
 
-    # Додавання нових світло-зелених пунктирних зв'язків між непарними вторинними кластерами за шаблоном 4-3
+    if step == 3:
+        irregular_edges_blue.append((11, 17))
+
+    else:
+        irregular_edges_blue = [(i * 6 + 5, (i + 1) * 6 + 5) for i in range(1, num_processors // 6 - 1)]
+
+        if num_processors // 6 > 2:
+            irregular_edges_blue.append(((num_processors // 6 - 1) * 6 + 5, 11))
+
     irregular_edges_green = []
-    for cluster_num in range(1, num_processors // 6, 2):  # тільки непарні вторинні кластери
+
+    for cluster_num in even_clusters:
         base_index = cluster_num * 6
-        if cluster_num > 1:
-            irregular_edges_green.append((base_index + 4, (cluster_num - 1) * 6 + 3))  # 4-3 з попереднім кластером
-        if cluster_num < (num_processors // 6 - 1):
-            irregular_edges_green.append((base_index + 4, (cluster_num + 1) * 6 + 3))  # 4-3 з наступним кластером
+        prev_cluster = cluster_num - 1
+
+        if prev_cluster in odd_clusters:
+            prev_base_index = prev_cluster * 6
+            irregular_edges_green.append((base_index + 3, prev_base_index + 4))
+
+        next_cluster = cluster_num + 1
+
+        if next_cluster in odd_clusters:
+            next_base_index = next_cluster * 6
+            irregular_edges_green.append((base_index + 3, next_base_index + 4))
+
+    if odd_clusters and even_clusters:
+        last_odd_cluster = odd_clusters[-1]
+        last_odd_index = last_odd_cluster * 6
+
+        if last_odd_cluster + 1 not in even_clusters:
+            first_even_index = even_clusters[0] * 6
+            irregular_edges_green.append((first_even_index + 3, last_odd_index + 4))
+
+    irregular_edges_yellow = []
+
+    if len(odd_clusters) == 2:
+        base_index = odd_clusters[0] * 6
+        next_base_index = odd_clusters[1] * 6
+
+        if (base_index + 3 in pos) and (next_base_index + 3 in pos):
+            irregular_edges_yellow.append((base_index + 3, next_base_index + 3))
+
+    else:
+
+        for i in range(len(odd_clusters)):
+            base_index = odd_clusters[i] * 6
+            next_base_index = odd_clusters[(i + 1) % len(odd_clusters)] * 6
+
+            if (base_index + 3 in pos) and (next_base_index + 3 in pos):
+                irregular_edges_yellow.append((base_index + 3, next_base_index + 3))
+
+    irregular_edges_cyan = []
+
+    if len(even_clusters) == 2:
+        base_index = even_clusters[0] * 6
+        next_base_index = even_clusters[1] * 6
+
+        if (base_index + 4 in pos) and (next_base_index + 4 in pos):
+            irregular_edges_cyan.append((base_index + 4, next_base_index + 4))
+
+    else:
+
+        for cluster_num in even_clusters:
+            base_index = cluster_num * 6
+            next_base_index = ((cluster_num + 2) % (num_processors // 6)) * 6
+
+            if next_base_index == 0:
+                next_base_index = 6
+
+            if (base_index + 3 in pos) and (next_base_index + 4 in pos):
+                irregular_edges_cyan.append((base_index + 4, next_base_index + 4))
+
+    irregular_edges_red = []
+
+    for cluster_num in range(1, num_processors // 6 - 1):
+
+        base_index = cluster_num * 6
+        next_base_index = (cluster_num + 1) * 6
+
+        if (base_index + 1 in pos) and (next_base_index + 2 in pos):
+            irregular_edges_red.append((base_index + 1, next_base_index + 2))
+
+    if num_processors // 6 > 2:
+        irregular_edges_red.append(((num_processors // 6 - 1) * 6 + 1, 8))
+
+    nx.draw_networkx_edges(G, pos, edgelist=irregular_edges_blue, edge_color="blue", style="dashed", width=1.5,
+                           connectionstyle="arc3,rad=0.3", arrows=True)
 
     nx.draw_networkx_edges(G, pos, edgelist=irregular_edges_green, edge_color="lightgreen", style="dashed", width=1.5,
                            connectionstyle="arc3,rad=0.3", arrows=True)
 
-    irregular_edges_yellow = []
-    for cluster_num in range(1, num_processors // 6, 2):  # тільки непарні вторинні кластери
-        base_index = cluster_num * 6
-        next_base_index = ((cluster_num + 2) % (num_processors // 6)) * 6
-        if (base_index + 3 in pos) and (next_base_index + 3 in pos):
-            irregular_edges_yellow.append((base_index + 3, next_base_index + 3))
-
-
     nx.draw_networkx_edges(G, pos, edgelist=irregular_edges_yellow, edge_color="yellow", style="dashed", width=1.5,
+                           connectionstyle="arc3,rad=0.3", arrows=True)
+
+    nx.draw_networkx_edges(G, pos, edgelist=irregular_edges_cyan, edge_color="cyan", style="dashed", width=1.5,
+                           connectionstyle="arc3,rad=0.3", arrows=True)
+
+    nx.draw_networkx_edges(G, pos, edgelist=irregular_edges_red, edge_color="red", style="dashed", width=1.5,
                            connectionstyle="arc3,rad=0.3", arrows=True)
 
     nx.draw_networkx_nodes(G, pos, node_size=500, node_color="skyblue")
@@ -150,9 +289,9 @@ def visualize_graph(adjacency_matrix, step):
 
 # Основна функція для запуску процесу
 def main():
-    num_steps = 6  # Задаємо кількість кроків масштабування
+    num_steps = int(input("Enter the number of clusters: "))  # Задаємо кількість кроків масштабування
     results = []
-
+    adjacency_matrix = []
     for step in range(1, num_steps + 1):
         adjacency_matrix = create_adjacency_matrix(step)
         properties = calculate_topological_properties(adjacency_matrix)
@@ -160,9 +299,23 @@ def main():
             "Step": step,
             "Properties": properties
         })
+        # Виводимо матрицю суміжності з правильним форматуванням
+        print("Матриця суміжності з нумерацією від 1 до 6:")
 
-        # Візуалізація графу для кожного кроку
-        visualize_graph(adjacency_matrix, step)
+        # Додаємо відступ і заголовки стовпців
+        print("    ", end="")  # Додатковий пробіл для вирівнювання
+        for j in range(1, adjacency_matrix.shape[1] + 1):
+            print(f"{j:2}", end=" ")
+        print()
+
+        # Виводимо рядки матриці з нумерацією
+        for i in range(adjacency_matrix.shape[0]):
+            print(f"{i + 1:2}  ", end="")  # Нумерація рядків і відступ
+            for j in range(adjacency_matrix.shape[1]):
+                print(f"{adjacency_matrix[i, j]:2}", end=" ")
+            print()
+    # Візуалізація графу для кожного кроку
+    visualize_graph(adjacency_matrix, num_steps)
 
     # Виводимо результати
     for result in results:

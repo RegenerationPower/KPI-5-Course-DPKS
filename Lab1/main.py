@@ -267,20 +267,19 @@ def visualize_graph(adjacency_matrix, step):
 
 
 def main():
-    num_steps = int(input("Enter the number of clusters: "))  # Задаємо кількість кроків масштабування
-    results = []
-    final_adjacency_matrix = None
+    try:
+        num_steps = int(input("Введіть кількість кластерів: "))  # Задаємо кількість кроків масштабування
+        if num_steps < 1:
+            raise ValueError("Кількість кластерів повинна бути принаймні 1.")
+    except ValueError as e:
+        print(f"Неправильний ввід: {e}")
+        return
 
-    for step in range(1, num_steps + 1):
-        adjacency_matrix = create_adjacency_matrix(step)
-        final_adjacency_matrix = adjacency_matrix
-        properties = calculate_topological_properties(adjacency_matrix)
-        results.append({
-            "Step": step,
-            "Properties": properties
-        })
+    final_step = num_steps
+    final_adjacency_matrix = create_adjacency_matrix(final_step)
+    final_properties = calculate_topological_properties(final_adjacency_matrix)
 
-    print("Матриця суміжності з нумерацією від 1 до n (для останнього кроку):")
+    print("Матриця суміжності з нумерацією від 1 до n:")
     print("    ", end="")  # Додатковий пробіл для вирівнювання
     for j in range(1, final_adjacency_matrix.shape[1] + 1):
         print(f"{j:2}", end=" ")
@@ -292,13 +291,55 @@ def main():
             print(f"{final_adjacency_matrix[i, j]:2}", end=" ")
         print()
 
-    visualize_graph(final_adjacency_matrix, num_steps)
+    visualize_graph(final_adjacency_matrix, final_step)
 
-    final_result = results[-1]
-    print("\nРезультати масштабування для останнього кроку:")
-    print(f"Step {final_result['Step']}:")
-    for prop, value in final_result["Properties"].items():
+    print("\nРезультати масштабування:")
+    print(f"Step {final_step}:")
+    for prop, value in final_properties.items():
         print(f"  {prop}: {value}")
+
+
+# def main():
+#     try:
+#         num_steps = int(input("Введіть кількість кластерів: "))  # Задаємо кількість кроків масштабування
+#         if num_steps < 1:
+#             raise ValueError("Кількість кластерів повинна бути принаймні 1.")
+#     except ValueError as e:
+#         print(f"Неправильний ввід: {e}")
+#         return
+#
+#     results = []
+#
+#     for step in range(1, num_steps + 1):
+#         print(f"\n--- Крок {step} ---")
+#
+#         # Генеруємо матрицю суміжності для поточного етапу
+#         adjacency_matrix = create_adjacency_matrix(step)
+#         properties = calculate_topological_properties(adjacency_matrix)
+#         results.append({
+#             "Step": step,
+#             "Properties": properties
+#         })
+#
+#         # Виводимо матрицю суміжності з нумерацією
+#         print("Матриця суміжності з нумерацією від 1 до n:")
+#         print("    ", end="")  # Додатковий пробіл для вирівнювання
+#         for j in range(1, adjacency_matrix.shape[1] + 1):
+#             print(f"{j:2}", end=" ")
+#         print()
+#
+#         for i in range(adjacency_matrix.shape[0]):
+#             print(f"{i + 1:2}  ", end="")  # Нумерація рядків і відступ
+#             for j in range(adjacency_matrix.shape[1]):
+#                 print(f"{adjacency_matrix[i, j]:2}", end=" ")
+#             print()
+#
+#         visualize_graph(adjacency_matrix, step)
+#
+#         print("\nРезультати масштабування для цього етапу:")
+#         print(f"Етап {step}:")
+#         for prop, value in properties.items():
+#             print(f"  {prop}: {value}")
 
 
 if __name__ == "__main__":
